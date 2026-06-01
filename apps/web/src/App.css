@@ -1,0 +1,17 @@
+@font-face {
+  font-family: 'KugileDemo';
+  src: url('/fonts/Kugile_Demo.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+.welcome-transition {
+  transition: opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1), max-height 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 1;
+  max-height: 100vh; /* Adjust based on Welcome's height */
+  overflow: hidden;
+}
+.welcome-transition.hide {
+  opacity: 0;
+  max-height: 0;
+  pointer-events: none;
+}
