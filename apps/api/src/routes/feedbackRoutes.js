@@ -1,5 +1,6 @@
 import express from "express";
 import {
+    lookupByPhone,
     submitSurvey,
     getAllFeedback,
     getFeedbackById,
@@ -9,6 +10,9 @@ import {
 import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
+
+// GET /api/feedback/lookup?phone= — public (lookup by phone)
+router.get("/lookup", lookupByPhone);
 
 // POST /api/feedback/submit — public (called by Form.jsx on submission)
 router.post("/submit", submitSurvey);

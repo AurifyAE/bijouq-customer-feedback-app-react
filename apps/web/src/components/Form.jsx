@@ -88,7 +88,7 @@ function Form() {
     hearAboutUsOther: "",
     jewelryCollections: [],
     jewelryCollectionsOther: "",
-    blueDiamondBranch: "",
+    bijouqBranch: "",
     feedback: "",
   });
   const [loading, setLoading] = useState(false);
@@ -215,28 +215,28 @@ function Form() {
 
   const fetchUserByPhone = async (phone) => {
     try {
-      const baseUrl = import.meta.env.DEV
-        ? "/api"
-        : `https://script.google.com/macros/s/${key}/exec`;
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
       const response = await fetch(
-        `${baseUrl}?phone=${encodeURIComponent(phone)}`
+        `${API_URL}/feedback/lookup?phone=${encodeURIComponent(phone)}`
       );
 
       if (!response.ok) {
-        console.log("Response not ok:", response.status);
+        console.log("Lookup response not ok:", response.status);
         return null;
       }
 
-      const text = await response.text();
+      const data = await response.json();
 
-      try {
-        const data = JSON.parse(text);
-        return data.status === "success" && data.phone ? data : null;
-      } catch {
-        console.error("Server did not return JSON:", text.slice(0, 100));
+      if (data.status === "already_submitted") {
+        return { alreadySubmitted: true, data: data.data };
+      }
+
+      if (data.status === "not_found") {
         return null;
       }
+
+      return null;
     } catch (err) {
       console.error("Error fetching user by phone:", err);
       return null;
@@ -258,42 +258,100 @@ function Form() {
 
       if (fullPhoneNumber !== fetchedPhone) {
         setLoading(true);
-        const userData = await fetchUserByPhone(fullPhoneNumber);
-        if (userData && userData.phone) {
-          const dateOfBirth = userData.dateOfBirth ? new Date(userData.dateOfBirth).toISOString().slice(0, 10) : "";
+        const result = await fetchUserByPhone(fullPhoneNumber);
+        setLoading(false);
+
+        if (result?.alreadySubmitted) {
+          // Show alert and pre-fill form with existing data
+          alert(
+            language === "ar"
+              ? "لقد قمت بالفعل بإرسال هذا الاستبيان. شكراً لك!"
+              : "You have already submitted this survey. Thank you!"
+          );
+
+          // Pre-fill existing data
+          const dob = result.data.date_of_birth || "";
           let birthDay = "", birthMonth = "", birthYear = "";
 
-          if (dateOfBirth) {
-            const [year, month, day] = dateOfBirth.split('-');
-            birthDay = day;
-            birthMonth = month;
-            birthYear = year;
+          if (dob) {
+            if (dob.includes("-")) {
+              const [year, month, day] = dob.split("-");
+              birthDay = day;
+              birthMonth = month;
+              birthYear = year;
+            } else if (dob.includes("/")) {
+              const [day, month] = dob.split("/");
+              birthDay = day;
+              birthMonth = month;
+            }
           }
 
           setForm((prev) => ({
             ...prev,
-            phone: userData.phone ? String(userData.phone).replace(selectedCountry.dialCode, '') : prev.phone,
-            fullName: userData.fullName || prev.fullName,
-            emiratesId: userData.emiratesId || prev.emiratesId,
-            dateOfBirth,
+            fullName: result.data.full_name || prev.fullName,
+            emiratesId: result.data.emirates_id || prev.emiratesId,
+            dateOfBirth: dob,
             birthDay,
             birthMonth,
             birthYear,
-            hearAboutUs: userData.hearAboutUs
-              ? userData.hearAboutUs.split(",").map((s) => s.trim())
-              : [],
-            jewelryCollections: userData.jewelryCollections
-              ? userData.jewelryCollections.split(",").map((s) => s.trim())
-              : [],
-            hearAboutUsOther: userData.hearAboutUsOther || prev.hearAboutUsOther,
-            jewelryCollectionsOther: userData.jewelryCollectionsOther || prev.jewelryCollectionsOther,
-            blueDiamondBranch: userData.blueDiamondBranch || prev.blueDiamondBranch,
-            feedback: userData.feedback || prev.feedback,
+            hearAboutUs: result.data.hear_about_us
+              ? result.data.hear_about_us.split(",").map((s) => s.trim())
+              : prev.hearAboutUs,
+            hearAboutUsOther: result.data.hear_about_us_other || prev.hearAboutUsOther,
+            jewelryCollections: result.data.jewelry_collections
+              ? result.data.jewelry_collections.split(",").map((s) => s.trim())
+              : prev.jewelryCollections,
+            jewelryCollectionsOther: result.data.jewelry_collections_other || prev.jewelryCollectionsOther,
+            bijouqBranch: result.data.bijouq_branch || prev.bijouqBranch,
+            feedback: result.data.feedback || prev.feedback,
+          }));
+
+          setFetchedPhone(fullPhoneNumber);
+          return; // Stop — don't advance to next step
+        }
+
+        if (result?.data) {
+          // New data found (shouldn't happen given controller logic, but safe fallback)
+          const dob = result.data.date_of_birth || "";
+          let birthDay = "", birthMonth = "", birthYear = "";
+
+          if (dob) {
+            if (dob.includes("-")) {
+              const [year, month, day] = dob.split("-");
+              birthDay = day;
+              birthMonth = month;
+              birthYear = year;
+            } else if (dob.includes("/")) {
+              const [day, month] = dob.split("/");
+              birthDay = day;
+              birthMonth = month;
+            }
+          }
+
+          setForm((prev) => ({
+            ...prev,
+            fullName: result.data.full_name || prev.fullName,
+            emiratesId: result.data.emirates_id || prev.emiratesId,
+            dateOfBirth: dob,
+            birthDay,
+            birthMonth,
+            birthYear,
+            hearAboutUs: result.data.hear_about_us
+              ? result.data.hear_about_us.split(",").map((s) => s.trim())
+              : prev.hearAboutUs,
+            hearAboutUsOther: result.data.hear_about_us_other || prev.hearAboutUsOther,
+            jewelryCollections: result.data.jewelry_collections
+              ? result.data.jewelry_collections.split(",").map((s) => s.trim())
+              : prev.jewelryCollections,
+            jewelryCollectionsOther: result.data.jewelry_collections_other || prev.jewelryCollectionsOther,
+            bijouqBranch: result.data.bijouq_branch || prev.bijouqBranch,
+            feedback: result.data.feedback || prev.feedback,
           }));
         }
+
         setFetchedPhone(fullPhoneNumber);
-        setLoading(false);
       }
+
       setStep((s) => s + 1);
     } else {
       setStep((s) => s + 1);
@@ -341,32 +399,31 @@ function Form() {
       return branchMap[branchName.trim()] || branchName;
     };
 
-    const englishBranch = getEnglishBranch(form.blueDiamondBranch);
+    const englishBranch = getEnglishBranch(form.bijouqBranch);
 
     try {
-      const scriptURL = `https://script.google.com/macros/s/${key}/exec`;
-      const payload = {
-        Timestamp: new Date().toLocaleString(),
-        Phone: selectedCountry.dialCode + form.phone.replace(/\D/g, ''),
-        CountryCode: selectedCountry.code,
-        CountryName: selectedCountry.name,
-        FullName: form.fullName,
-        EmiratesId: form.emiratesId,
-        DateOfBirth: form.dateOfBirth,
-        HearAboutUs: englishHearAboutUs.length > 0 ? englishHearAboutUs.join(", ") : "",
-        HearAboutUsOther: form.hearAboutUsOther || "",
-        JewelryCollections: englishJewelryCollections.length > 0 ? englishJewelryCollections.join(", ") : "",
-        JewelryCollectionsOther: form.jewelryCollectionsOther || "",
-        BlueDiamondBranch: englishBranch || "",
-        Feedback: form.feedback || "",
-        Submitted: new Date().toLocaleString(),
-        Language: language,
-      };
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-      await fetch(scriptURL, {
+      await fetch(`${API_URL}/feedback/submit`, {
         method: "POST",
-        mode: "no-cors",
-        body: new URLSearchParams(payload),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          phone: selectedCountry.dialCode + form.phone.replace(/\D/g, ''),
+          country_code: selectedCountry.code,
+          country_name: selectedCountry.name,
+          full_name: form.fullName,
+          emirates_id: form.emiratesId || "",
+          date_of_birth: form.dateOfBirth || "",
+          hear_about_us: englishHearAboutUs.length > 0 ? englishHearAboutUs.join(", ") : "",
+          hear_about_us_other: form.hearAboutUsOther || "",
+          jewelry_collections: englishJewelryCollections.length > 0 ? englishJewelryCollections.join(", ") : "",
+          jewelry_collections_other: form.jewelryCollectionsOther || "",
+          bijouq_branch: englishBranch || "",
+          feedback: form.feedback || "",
+          language,
+        }),
       });
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -451,7 +508,7 @@ function Form() {
                     required
                     autoFocus
                     style={{ fontFamily: 'Montserrat, sans-serif' }}
-                    className={`w-full pl-10 pr-3 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base rounded-lg border transition-all ${phoneError ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-transparent'
+                    className={`w-full pl-10 pr-3 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base rounded-lg border transition-all ${phoneError ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-[#002e23] focus:border-[#002e23]'
                       }`}
                     placeholder={t.phoneFormatHint}
                     dir={language === "ar" ? "rtl" : "ltr"}
@@ -500,14 +557,14 @@ function Form() {
                   onChange={handleChange}
                   required
                   autoFocus
-                  className="w-full mt-1 p-2 sm:p-2.5 md:p-3 text-xs sm:text-sm md:text-base rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full mt-1 p-2 sm:p-2.5 md:p-3 text-xs sm:text-sm md:text-base rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#002e23] focus:border-[#002e23] transition-all"
                   placeholder={t.fullNamePlaceholder}
                   dir={language === "ar" ? "rtl" : "ltr"}
                 />
               </div>
             </div>
             <div className={`flex gap-2 md:gap-4 mt-4 md:mt-6 w-full poppins-regular px-2 md:px-0 ${language === "ar" ? "font-arabic" : ""}`}>
-              <button type="button" className="w-1/3 border border-[#002E23] text-[#002E23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-blue-50 transition-all duration-200 font-semibold" onClick={handleBack}>{t.back}</button>
+              <button type="button" className="w-1/3 border border-[#002e23] text-[#002e23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-[#f2eee9] transition-all duration-200 font-semibold" onClick={handleBack}>{t.back}</button>
               <button disabled={!form.fullName} type="button" className="w-2/3 bg-gradient-to-r from-[#00B389] via-[#007056] to-[#002E23] text-white py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg hover:from-[#002E23] hover: via-[#007056] hover:to-[#002E23] transform hover:scale-105 transition-all duration-200 font-semibold shadow-lg disabled:from-gray-400 disabled:via-gray-400 disabled:to-gray-400 disabled:text-gray-300 disabled:hover:from-gray-400 disabled:hover:via-gray-400 disabled:hover:to-gray-400 disabled:transform-none disabled:hover:scale-100 disabled:cursor-not-allowed disabled:shadow-none" onClick={handleNext}>{t.next}</button>
             </div>
           </div>
@@ -536,7 +593,7 @@ function Form() {
               </div>
             </div>
             <div className={`flex gap-2 md:gap-4 mt-4 md:mt-6 w-full poppins-regular px-2 md:px-0 ${language === "ar" ? "font-arabic" : ""}`}>
-              <button type="button" className="w-1/3 border border-[#002E23] text-[#002E23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-blue-50 transition-all duration-200 font-semibold" onClick={handleBack}>{t.back}</button>
+              <button type="button" className="w-1/3 border border-[#002e23] text-[#002e23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-[#f2eee9] transition-all duration-200 font-semibold" onClick={handleBack}>{t.back}</button>
               <button type="button" className="w-2/3 bg-gradient-to-r from-[#00B389] via-[#00382C] to-[#002E23] text-white py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg hover:from-[#002E23] hover:to-[#002E23] transform hover:scale-105 transition-all duration-300 font-semibold shadow-lg" onClick={handleNext}>{t.next}</button>
             </div>
           </div>
@@ -555,17 +612,17 @@ function Form() {
                 </span>
                 <div className={`flex gap-2 mt-1 ${language === "ar" ? "flex-row-reverse" : ""}`}>
                   <div className="flex-1">
-                    <input ref={dayInputRef} type="number" name="birthDay" value={form.birthDay} onChange={(e) => handleDateInputChange('birthDay', e.target.value, monthInputRef)} maxLength="2" autoFocus className="w-full p-2 sm:p-2.5 md:p-3 text-xs sm:text-sm md:text-base rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-center" placeholder={t.dayPlaceholder} dir="ltr" />
+                    <input ref={dayInputRef} type="number" name="birthDay" value={form.birthDay} onChange={(e) => handleDateInputChange('birthDay', e.target.value, monthInputRef)} maxLength="2" autoFocus className="w-full p-2 sm:p-2.5 md:p-3 text-xs sm:text-sm md:text-base rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#002e23] focus:border-[#002e23] transition-all text-center" placeholder={t.dayPlaceholder} dir="ltr" />
                   </div>
                   <div className="flex-1">
-                    <input ref={monthInputRef} type="number" name="birthMonth" value={form.birthMonth} onChange={(e) => handleDateInputChange('birthMonth', e.target.value, yearInputRef)} maxLength="2" className="w-full p-2 sm:p-2.5 md:p-3 text-xs sm:text-sm md:text-base rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-center" placeholder={t.monthPlaceholder} dir="ltr" />
+                    <input ref={monthInputRef} type="number" name="birthMonth" value={form.birthMonth} onChange={(e) => handleDateInputChange('birthMonth', e.target.value, yearInputRef)} maxLength="2" className="w-full p-2 sm:p-2.5 md:p-3 text-xs sm:text-sm md:text-base rounded-lg border border-gray-300 focus:ring-2 focus:ring-[#002e23] focus:border-[#002e23] transition-all text-center" placeholder={t.monthPlaceholder} dir="ltr" />
                   </div>
                 </div>
                 <p className="mt-1 text-xs text-gray-500 text-center">{language === "ar" ? "يوم / شهر" : "Day / Month"}</p>
               </div>
             </div>
             <div className={`flex gap-2 md:gap-4 mt-4 md:mt-6 w-full poppins-regular px-2 md:px-0 ${language === "ar" ? "font-arabic" : ""}`}>
-              <button type="button" className="w-1/3 border border-[#002E23] text-[#002E23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-blue-50 transition-all duration-200 font-semibold" onClick={handleBack}>{t.back}</button>
+              <button type="button" className="w-1/3 border border-[#002e23] text-[#002e23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-[#f2eee9] transition-all duration-200 font-semibold" onClick={handleBack}>{t.back}</button>
               <button
                 disabled={!form.birthDay || !form.birthMonth || parseInt(form.birthDay) < 1 || parseInt(form.birthDay) > 31 || parseInt(form.birthMonth) < 1 || parseInt(form.birthMonth) > 12}
                 type="button"
@@ -602,7 +659,7 @@ function Form() {
               </div>
             </div>
             <div className={`flex gap-2 md:gap-4 mt-4 md:mt-6 w-full poppins-regular px-2 md:px-0 ${language === "ar" ? "font-arabic" : ""}`}>
-              <button type="button" className="w-1/3 border border-[#002E23] text-[#002E23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-blue-50 transition-all duration-200 font-semibold" onClick={handleBack}>{t.back}</button>
+              <button type="button" className="w-1/3 border border-[#002e23] text-[#002e23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-[#f2eee9] transition-all duration-200 font-semibold" onClick={handleBack}>{t.back}</button>
               <button type="button" disabled={form.hearAboutUs.length === 0} className="w-2/3 bg-gradient-to-r from-[#00B389] via-[#00382C] to-[#002E23] text-white py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg hover:from-[#002E23] hover:via-[#007056] hover:to-[#002E23] transform hover:scale-105 transition-all duration-200 font-semibold shadow-lg disabled:from-gray-400 disabled:via-gray-400 disabled:to-gray-400 disabled:text-gray-300 disabled:hover:from-gray-400 disabled:hover:via-gray-400 disabled:hover:to-gray-400 disabled:transform-none disabled:hover:scale-100 disabled:cursor-not-allowed disabled:shadow-none" onClick={handleNext}>{t.next}</button>
             </div>
           </div>
@@ -634,7 +691,7 @@ function Form() {
               </div>
             </div>
             <div className={`flex gap-2 md:gap-4 mt-4 md:mt-6 w-full poppins-regular px-2 md:px-0 ${language === "ar" ? "font-arabic" : ""}`}>
-              <button type="button" className="w-1/3 border border-[#002E23] text-[#002E23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-blue-50 transition-all duration-200 font-semibold" onClick={handleBack}>{t.back}</button>
+              <button type="button" className="w-1/3 border border-[#002e23] text-[#002e23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-[#f2eee9] transition-all duration-200 font-semibold" onClick={handleBack}>{t.back}</button>
               <button type="button" disabled={form.jewelryCollections.length === 0} className="w-2/3 bg-gradient-to-r from-[#00B389] via-[#00382C] to-[#002E23] text-white py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg hover:from-[#002E23] hover:via-[#007056] hover:to-[#002E23] transform hover:scale-105 transition-all duration-200 font-semibold shadow-lg disabled:from-gray-400 disabled:via-gray-400 disabled:to-gray-400 disabled:text-gray-300 disabled:hover:from-gray-400 disabled:hover:via-gray-400 disabled:hover:to-gray-400 disabled:transform-none disabled:hover:scale-100 disabled:cursor-not-allowed disabled:shadow-none" onClick={handleNext}>{t.next}</button>
             </div>
           </div>
@@ -646,12 +703,12 @@ function Form() {
             <div className={`space-y-2 sm:space-y-3 md:space-y-4 poppins-regular ${language === "ar" ? "font-arabic" : ""}`}>
               <div className="block">
                 <h2 className={`text-lg text-[#002E23] sm:text-xl md:text-2xl lg:text-3xl mb-2 sm:mb-3 md:mb-4 text-center ${language === "ar" ? "font-arabic" : ""}`} style={{ fontFamily: "Poppins, sans-serif" }}>
-                  {t.blueDiamondBranch}<span className="text-red-500">*</span>
+                  {t.bijouqBranch}<span className="text-red-500">*</span>
                 </h2>
                 <div className={`mt-3 space-y-2 ${language === "ar" ? "font-arabic" : ""}`} dir={language === "ar" ? "rtl" : "ltr"}>
                   {getBranchesForCountry(selectedCountry.code, language).map((branch) => (
                     <label key={branch} className={`flex items-center gap-2 text-xs sm:text-sm md:text-base text-[#515151] ${language === "ar" ? "flex-row-reverse" : ""}`}>
-                      <input type="radio" name="blueDiamondBranch" value={branch} checked={form.blueDiamondBranch === branch} autoFocus onChange={handleChange} className="w-6 h-6 border-gray-300 accent-green-600 focus:ring-green-500" />
+                      <input type="radio" name="bijouqBranch" value={branch} checked={form.bijouqBranch === branch} autoFocus onChange={handleChange} className="w-6 h-6 border-gray-300 accent-green-600 focus:ring-green-500" />
                       <span>{branch}</span>
                     </label>
                   ))}
@@ -659,8 +716,8 @@ function Form() {
               </div>
             </div>
             <div className={`flex gap-2 md:gap-4 mt-4 md:mt-6 w-full poppins-regular px-2 md:px-0 ${language === "ar" ? "font-arabic" : ""}`}>
-              <button type="button" className={`w-1/3 border border-[#002E23] text-[#002E23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-blue-50 transition-all duration-200 font-semibold ${language === "ar" ? "font-arabic" : ""}`} onClick={handleBack}>{t.back}</button>
-              <button type="button" disabled={!form.blueDiamondBranch} className="w-2/3 bg-gradient-to-r from-[#00B389] via-[#00382C] to-[#002E23] text-white py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg hover:from-[#002E23] hover:via-[#007056] hover:to-[#002E23] transform hover:scale-105 transition-all duration-200 font-semibold shadow-lg disabled:from-gray-400 disabled:via-gray-400 disabled:to-gray-400 disabled:text-gray-300 disabled:hover:from-gray-400 disabled:hover:via-gray-400 disabled:hover:to-gray-400 disabled:transform-none disabled:hover:scale-100 disabled:cursor-not-allowed disabled:shadow-none" onClick={handleFinalSubmit}>{t.submit}</button>
+              <button type="button" className={`w-1/3 border border-[#002e23] text-[#002e23] py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg bg-white hover:bg-[#f2eee9] transition-all duration-200 font-semibold ${language === "ar" ? "font-arabic" : ""}`} onClick={handleBack}>{t.back}</button>
+              <button type="button" disabled={!form.bijouqBranch} className="w-2/3 bg-gradient-to-r from-[#00B389] via-[#00382C] to-[#002E23] text-white py-2 md:py-3 px-2 md:px-6 text-xs md:text-base rounded-lg hover:from-[#002E23] hover:via-[#007056] hover:to-[#002E23] transform hover:scale-105 transition-all duration-200 font-semibold shadow-lg disabled:from-gray-400 disabled:via-gray-400 disabled:to-gray-400 disabled:text-gray-300 disabled:hover:from-gray-400 disabled:hover:via-gray-400 disabled:hover:to-gray-400 disabled:transform-none disabled:hover:scale-100 disabled:cursor-not-allowed disabled:shadow-none" onClick={handleFinalSubmit}>{t.submit}</button>
             </div>
           </div>
         );
@@ -750,7 +807,7 @@ function Form() {
       ...prev,
       hearAboutUs: prev.hearAboutUs.map((v) => hearAboutUsMap[v] || v),
       jewelryCollections: prev.jewelryCollections.map((v) => jewelryCollectionsMap[v] || v),
-      blueDiamondBranch: prev.blueDiamondBranch ? (branchMap[prev.blueDiamondBranch] || prev.blueDiamondBranch) : "",
+      bijouqBranch: prev.bijouqBranch ? (branchMap[prev.bijouqBranch] || prev.bijouqBranch) : "",
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
@@ -781,20 +838,23 @@ function Form() {
         <div className="relative">
           <button
             onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-            className="flex items-center gap-3 px-5 py-3 bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl hover:shadow-2xl text-sm font-semibold text-[#002E23] hover:text-[#002E23] hover:bg-opacity-100 transition-all duration-300 min-w-[140px] group"
+            className="flex items-center gap-3 px-5 py-3 bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl shadow-xl hover:shadow-2xl text-sm font-semibold text-[#002e23] hover:bg-opacity-100 transition-all duration-300 min-w-[140px] group border border-[#002e23]/10"
           >
-            <div className="flex items-center justify-center w-6 h-6 bg-gradient-to-r from-[#002E23] to-[#007056] rounded-full">
+            <div className="flex items-center justify-center w-6 h-6 bg-gradient-to-r from-[#002e23] to-[#007056] rounded-full">
               <Globe size={14} className="text-white" />
             </div>
             <span className="font-semibold">{language === "en" ? "EN" : "عر"}</span>
-            <ChevronDown size={16} className={`transition-transform duration-200 ${showLanguageDropdown ? "rotate-180" : ""} group-hover:text-blue-600`} />
+            <ChevronDown
+              size={16}
+              className={`transition-transform duration-200 text-[#002e23]/60 ${showLanguageDropdown ? "rotate-180" : ""}`}
+            />
           </button>
 
           {showLanguageDropdown && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowLanguageDropdown(false)} />
               <div
-                className="absolute top-full mt-3 bg-white rounded-2xl border border-blue-100 shadow-2xl overflow-hidden min-w-[220px] z-50 backdrop-blur-sm"
+                className="absolute top-full mt-3 bg-white rounded-2xl border border-[#002e23]/10 shadow-2xl overflow-hidden min-w-[220px] z-50"
                 style={{ right: language === "ar" ? 0 : "auto", left: language === "ar" ? "auto" : 0 }}
               >
                 <div className="p-1">
@@ -802,16 +862,23 @@ function Form() {
                     <button
                       key={lang}
                       onClick={() => { setLanguage(lang); setShowLanguageDropdown(false); }}
-                      className={`w-full px-4 py-3 text-left text-sm rounded-lg transition-all duration-150 flex items-center gap-3 ${language === lang
-                        ? "bg-gradient-to-r from-blue-50 to-indigo-50 text-[#002E23] font-semibold border border-blue-200"
-                        : "hover:bg-gray-50 text-[#002E23]"
+                      className={`w-full px-4 py-3 text-left text-sm rounded-xl transition-all duration-150 flex items-center gap-3
+                  ${language === lang
+                          ? "bg-[#f2eee9] text-[#002e23] font-semibold border border-[#002e23]/15"
+                          : "hover:bg-[#f2eee9]/60 text-[#374151]"
                         }`}
                     >
-                      <div className="w-4 h-4 rounded-full bg-[#002E23] flex items-center justify-center">
-                        <div className="w-2 h-2 rounded-full bg-[#002E23]"></div>
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all
+                  ${language === lang ? "border-[#002e23] bg-[#002e23]" : "border-gray-300"}`}
+                      >
+                        {language === lang && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                        )}
                       </div>
                       {lang === "en" ? t.english : t.arabic}
-                      {language === lang && <div className="ml-auto"><div className="w-2 h-2 rounded-full bg-[#002E23]"></div></div>}
+                      {language === lang && (
+                        <div className="ml-auto w-2 h-2 rounded-full bg-[#002e23]" />
+                      )}
                     </button>
                   ))}
                 </div>
@@ -853,7 +920,7 @@ function Form() {
 
         {step >= 1 && !finished && (
           <button
-            className="absolute top-4 bg-blue-50 hover:bg-blue-100 text-blue-700 p-3 rounded-full shadow-md hover:shadow-lg transition-all duration-200 border border-blue-200"
+            className="absolute top-4 bg-[#f2eee9] hover:bg-[#e8e2db] text-[#002e23] p-3 rounded-full shadow-md hover:shadow-lg transition-all duration-200 border border-[#002e23]/20"
             style={{ left: language === "ar" ? "auto" : "1rem", right: language === "ar" ? "1rem" : "auto" }}
             onClick={handleBack}
           >

@@ -72,14 +72,16 @@ export const verifySession = async (token) => {
 //  Feedback / Survey API
 // ─────────────────────────────────────────────
 
-// GET /api/feedback?page=&limit=&search=&country=&branch=
-export const fetchSurveys = async (token, { page = 1, limit = 20, search = "", country = "", branch = "" } = {}) => {
+// GET /api/feedback?page=&limit=&search=&country=&branch=&sortBy=&sortOrder=
+export const fetchSurveys = async (token, { page = 1, limit = 20, search = "", country = "", branch = "", sortBy = "submitted_at", sortOrder = "desc" } = {}) => {
     const params = new URLSearchParams({
         page,
         limit,
         search,
         country,
         branch,
+        sortBy,
+        sortOrder,
     });
     const data = await request(`/feedback?${params}`, {}, token);
     return data; // { status, data, total, page, limit, totalPages }
@@ -143,8 +145,7 @@ export const exportToCSV = (surveys) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `bijouq
-    _surveys_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `bluediamond_surveys_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
 };
