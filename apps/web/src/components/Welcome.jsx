@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import WelcomeImg from "../../public/images/Welcome.webp";
-import Logo from "../../public/images/bludiamond jewellery logo copy (2).svg";
+import WelcomeImg from "/images/Welcome.webp";
+import Logo from "/images/bludiamond jewellery logo copy (2).svg";
 
 function Welcome() {
   const [hasLoaded, setHasLoaded] = useState(false);

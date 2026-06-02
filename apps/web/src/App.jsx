@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import "./App.css";
-import Welcome from "./components/Welcome";
+// import Welcome from "./components/Welcome";
 import Form from "./components/Form";
 import ProductManagement from "./components/ProductManagement";
 
